@@ -1,9 +1,10 @@
 {
   "name": "dixit",
   "version": "1.0.0",
-  "description": "dixit game",
+  "description": "Dixit",
   "main": "dixit.js",
   "scripts": {
+    "start": "node dixit.js"
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "konntroll",
