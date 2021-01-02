@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title>Dixit</title>
+      <style type="text/css">
+        #welcome {
+          display: block;
+        }
+        #alreadyPlayed, #alreadyVoted, #autoVote,
+        #noVote, #nextRound, #scores, #wait {
+          display: none;
+        }
+      </style>
+   </head>
+   <script src = "/socket.io/socket.io.js"></script>
+   <script>
+     var socket = io();
+     socket.on('playersOnline', function(data) {
+       let target = document.getElementById('players');
+       let all = data.names.join(', ');
+       target.innerHTML = "Players: " + all;
+     });
+     socket.on('scoreUpdate', function(data) {
+       let target = document.getElementById('scores');
+       let all = data.scores.join(', ');
+       target.innerHTML = all + '.';
+       socket.emit('readyForNextRound');
+       flashMessage('scores', 5000);
+     });
+     socket.on('storyteller', function(data) {
+       let target = document.getElementById('storyteller');
+       target.innerHTML = data.storyteller + " is the storyteller this round.";
+     });
+     socket.on('image', function(data){
+       let play = document.getElementById('play');
+       for (let card of data) {
+         showImage(card, play);
+       }
+     });
+     socket.on('newclientconnect', function(data) {
+       for (let card of data) {
+        showImage(card);
+       }
+     });
+     socket.on('nextRound', function(data) {
+       document.getElementById('play').innerHTML = '';
+       showImage(data);
+       flashMessage("nextRound");
+     });
+     socket.on('wait', function(data) {
+       showImage(data);
+       flashMessage('wait');
+     });
+     socket.on('alreadyPlayed', function(data) {
+       showImage(data);
+       flashMessage("alreadyPlayed");
+     });
+     socket.on('alreadyVoted', function() {
+       flashMessage("alreadyVoted");
+     });
+     socket.on('autoVote', function() {
+       flashMessage("autoVote");
+     });
+     socket.on('noVote', function() {
+       flashMessage("noVote")
+     });
+     function flashMessage(elem, duration = 3000) {
+       document.getElementById(elem).style.display = "block";
+       setTimeout(function(){
+         document.getElementById(elem).style.display = "none";
+       }, duration);
+     }
+     function showImage(src, target = document.getElementById("hand")) {
+       let image = document.createElement("img");
+       image.src = "https://konntroll.github.io/memo/images/" + src + ".jpg";
+       image.width = 200;
+       image.height = 200;
+       image.id = src;
+       if (target == document.getElementById("hand")) {
+         image.onclick = function () {
+           socket.emit('playCard', src);
+           this.parentElement.removeChild(this);
+         }
+       } else {
+         image.onclick = function () {
+           socket.emit('vote', image.id);
+         }
+       }
+       target.appendChild(image);
+     }
+     function assignName() {
+       socket.emit('assignName', document.getElementById('name').value);
+       document.getElementById('welcome').style.display = "none";
+     }
+   </script>
+   <body>
+     <div id="welcome">
+       What's your name?
+       <input id = "name" type = "text" placeholder = "Don't be shy!">
+       <button type = "button" onclick = "assignName()">Go!</button>
+     </div>
+     <div id="game">
+       <div id="info">
+         <p id="players"></p>
+         <p id="storyteller"></p>
+         <p id="scores"></p>
+         <p id="wait"><b>NOTE:</b> Wait for the storyteller to play their card.</p>
+         <p id="alreadyPlayed"><b>NOTE:</b> You already played a card this round.</p>
+         <p id="alreadyVoted"><b>NOTE:</b> You already voted for a card this round.</p>
+         <p id="autoVote"><b>NOTE:</b> You can't vote for your own card.</p>
+         <p id="noVote"><b>NOTE:</b> You can't vote this round because you are the storyteller.</p>
+         <p id="nextRound"><b>NOTE:</b> Next round is starting!</p>
+       </div>
+       <div id='play'></div>
+       <div id='hand'></div>
+     </div>
+   </body>
+</html>
