@@ -1,6 +1,7 @@
 var dixit = require('express')();
 var http = require('http').Server(dixit);
 var io = require('socket.io')(http);
+var port = process.env.PORT || 80;
 
 dixit.get('/', function(req, res) {
    res.sendFile('dixit.html', {root: __dirname});
@@ -193,6 +194,6 @@ io.on('connection', function(socket) {
   });
 });
 
-http.listen(3000, function() {
-   console.log('listening on *:3000');
+http.listen(port, function() {
+   console.log('listening');
 });
