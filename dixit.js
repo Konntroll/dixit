@@ -7,30 +7,56 @@ dixit.get('/', function(req, res) {
    res.sendFile('dixit.html', {root: __dirname});
 });
 
-let images = [];
+var images = [];
 
-for (let i = 0; i < 60; i++) {
-  images.push(i);
+populate(images);
+
+shuffle(images);
+
+function populate(array) {
+  for (let i = 0; i < 60; i++) {
+    array.push(i);
+  }
 }
 
-shuffleDeck(images);
-
-function shuffleDeck(array) {
+function shuffle(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];
     }
 }
 
+function reshuffle(array) {
+  let newDeck = []
+  populate(newDeck);
+  shuffle(newDeck);
+
+  //this removes the cards that are still in the game
+  //from the new deck
+  for (let card of array) {
+    if (newDeck.indexOf(card) > -1) {
+      newDeck.splice(newDeck.indexOf(card), 1);
+    }
+  }
+
+  return newDeck;
+}
+
 function dealHand(array) {
+  if (array.length < 5) {
+    array = array.concat(reshuffle(array));
+  }
   let output = array.slice(0, 5);
-  array.splice(0, 5);
+  cardsPlayersHold = cardsPlayersHold.concat(array.splice(0, 5));
   return output;
 }
 
 function dealCard(array) {
+  if (array.length < 1) {
+    array = array.concat(reshuffle(array));
+  }
   let output = array[0];
-  array.shift();
+  cardsPlayersHold = cardsPlayersHold.concat(array.shift());
   return output;
 }
 
@@ -59,6 +85,7 @@ function currentStoryteller(map) {
   }
 }
 
+var cardsPlayersHold = [];
 var cardsInPlay = new Map();
 var storyteller = [];
 var votes = 0;
@@ -67,8 +94,9 @@ io.on('connection', function(socket) {
   socket.player = 'unnamed player';
   socket.score = 0;
   socket.scoreThisRound = 0;
-  storyteller.push(socket.id);
   socket.cardsInHand = dealHand(images);
+  cardsPlayersHold.push(socket.cardsInHand);
+  storyteller.push(socket.id);
 
   let players = io.sockets.sockets;
 
@@ -90,8 +118,18 @@ io.on('connection', function(socket) {
         return;
       }
     }
+
+    //removes the played card from the player's hand
     let index = socket.cardsInHand.indexOf(data);
     socket.cardsInHand.splice(index, 1);
+
+    //removes the played card from the array of cards still in the game;
+    //if the deck is exhausted, this array is used to prevent duplicates
+    //from appearing in the re-generated deck
+    index = cardsPlayersHold.indexOf(data);
+    cardsPlayersHold.splice(index, 1);
+
+    //adds the played card to a map of cards played this round
     cardsInPlay.set(data, {
       playedBy: socket.id,
       votedBy: []
@@ -121,7 +159,7 @@ io.on('connection', function(socket) {
       socket.emit('autoVote');
       return;
     }
-    //ditto for parseInt
+    //same as above for parseInt
     cardsInPlay.get(parseInt(data)).votedBy.push(socket.id);
     votes++;
     if (votes >= cardsInPlay.size - 1) {
@@ -141,6 +179,8 @@ io.on('connection', function(socket) {
   });
 
   function tallyVotes() {
+    console.log('These are the cards currently in play:')
+    console.log(cardsInPlay);
     for (let card of cardsInPlay.values()) {
       if (card.playedBy == storyteller[0]) {
         if (card.votedBy.length == 0 || card.votedBy.length >= cardsInPlay.size - 1) {
@@ -195,5 +235,5 @@ io.on('connection', function(socket) {
 });
 
 http.listen(port, function() {
-   console.log('listening');
+   console.log('listening on ' + port);
 });
