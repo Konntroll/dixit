@@ -95,7 +95,6 @@ io.on('connection', function(socket) {
   socket.score = 0;
   socket.scoreThisRound = 0;
   socket.cardsInHand = dealHand(images);
-  cardsPlayersHold.push(socket.cardsInHand);
   storyteller.push(socket.id);
 
   let players = io.sockets.sockets;
@@ -126,8 +125,7 @@ io.on('connection', function(socket) {
     //removes the played card from the array of cards still in the game;
     //if the deck is exhausted, this array is used to prevent duplicates
     //from appearing in the re-generated deck
-    index = cardsPlayersHold.indexOf(data);
-    cardsPlayersHold.splice(index, 1);
+    cardsPlayersHold.splice(cardsPlayersHold.indexOf(data), 1);
 
     //adds the played card to a map of cards played this round
     cardsInPlay.set(data, {
@@ -228,7 +226,9 @@ io.on('connection', function(socket) {
   socket.on('disconnect', function() {
     console.log('User ' + socket.id + ' is offline.');
     storyteller.splice(storyteller.indexOf(socket.id), 1);
-    players.delete(socket.id);
+    for (let card of socket.cardsInHand) {
+      cardsPlayersHold.splice(cardsPlayersHold.indexOf(card), 1);
+    }
     io.sockets.emit('playersOnline', {names: playersOnline(players)});
     io.sockets.emit('storyteller', {storyteller: currentStoryteller(players)});
   });
