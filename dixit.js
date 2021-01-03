@@ -89,12 +89,19 @@ var cardsPlayersHold = [];
 var cardsInPlay = new Map();
 var storyteller = [];
 var votes = 0;
+var playersOnHold = 0;
 
 io.on('connection', function(socket) {
   socket.player = 'unnamed player';
   socket.score = 0;
   socket.scoreThisRound = 0;
   socket.cardsInHand = dealHand(images);
+  if (cardsInPlay.size > 0) {
+    socket.onHold = true;
+    playersOnHold++;
+  } else {
+    socket.onHold = false;
+  }
   storyteller.push(socket.id);
 
   let players = io.sockets.sockets;
@@ -107,6 +114,11 @@ io.on('connection', function(socket) {
   socket.emit('newclientconnect', socket.cardsInHand);
 
   socket.on('playCard', function(data) {
+    if (socket.onHold == true) {
+      socket.emit('holdPlay', data);
+      console.log(socket.cardsInHand);
+      return;
+    }
     if (socket.id != storyteller[0] && cardsInPlay.size <= 0) {
       socket.emit('wait', data);
       return;
@@ -132,12 +144,16 @@ io.on('connection', function(socket) {
       playedBy: socket.id,
       votedBy: []
     });
-    if (cardsInPlay.size == players.size) {
+    if (cardsInPlay.size == players.size - playersOnHold) {
       io.sockets.emit('image', [...cardsInPlay.keys()]);
     }
   });
 
   socket.on('vote', function(data) {
+    if (socket.onHold == true) {
+      socket.emit('holdVote');
+      return;
+    }
     for (let card of cardsInPlay.values()) {
       for (let voter of card.votedBy) {
         if (voter == socket.id) {
@@ -173,7 +189,13 @@ io.on('connection', function(socket) {
 
   socket.on('readyForNextRound', function() {
     let hand = players.get(socket.id).cardsInHand;
-    socket.emit('nextRound', hand[hand.length - 1]);
+    if (!socket.onHold) {
+      socket.emit('nextRound', hand[hand.length - 1]);
+    } else {
+      socket.emit('nextRound', -1);
+      socket.onHold = false;
+      playersOnHold--;
+    }
   });
 
   function tallyVotes() {
@@ -183,7 +205,7 @@ io.on('connection', function(socket) {
       if (card.playedBy == storyteller[0]) {
         if (card.votedBy.length == 0 || card.votedBy.length >= cardsInPlay.size - 1) {
           for (let player of players.values()) {
-            if (player.id != storyteller[0]) {
+            if (player.id != storyteller[0] && player.hold != true) {
               player.score += 2;
               player.scoreThisRound += 2;
             }
@@ -211,7 +233,7 @@ io.on('connection', function(socket) {
     cardsInPlay.clear();
     for (let player of players.values()) {
       if (player.cardsInHand.length < 5) {
-        var cardToDeal = dealCard(images)
+        var cardToDeal = dealCard(images);
         player.cardsInHand.push(cardToDeal);
       }
     }
@@ -229,11 +251,14 @@ io.on('connection', function(socket) {
     for (let card of socket.cardsInHand) {
       cardsPlayersHold.splice(cardsPlayersHold.indexOf(card), 1);
     }
+    if (socket.onHold == true) {
+      playersOnHold--;
+    }
     io.sockets.emit('playersOnline', {names: playersOnline(players)});
     io.sockets.emit('storyteller', {storyteller: currentStoryteller(players)});
   });
 });
 
 http.listen(port, function() {
-   console.log('listening on ' + port);
+   console.log('Listening on port ' + port);
 });

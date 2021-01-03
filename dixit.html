@@ -7,7 +7,7 @@
           display: block;
         }
         #alreadyPlayed, #alreadyVoted, #autoVote,
-        #noVote, #nextRound, #scores, #wait {
+        #noVote, #nextRound, #scores, #wait, #hold {
           display: none;
         }
       </style>
@@ -44,8 +44,17 @@
      });
      socket.on('nextRound', function(data) {
        document.getElementById('play').innerHTML = '';
-       showImage(data);
+       if (data >= 0) {
+         showImage(data);
+       }
        flashMessage("nextRound");
+     });
+     socket.on('holdPlay', function(data) {
+       showImage(data);
+       flashMessage('hold');
+     });
+     socket.on('holdVote', function() {
+       flashMessage('hold');
      });
      socket.on('wait', function(data) {
        showImage(data);
@@ -105,6 +114,7 @@
          <p id="storyteller"></p>
          <p id="scores"></p>
          <p id="wait"><b>NOTE:</b> Wait for the storyteller to play their card.</p>
+         <p id="hold"><b>NOTE:</b> Wait for the round to finish.</p>
          <p id="alreadyPlayed"><b>NOTE:</b> You already played a card this round.</p>
          <p id="alreadyVoted"><b>NOTE:</b> You already voted for a card this round.</p>
          <p id="autoVote"><b>NOTE:</b> You can't vote for your own card.</p>
