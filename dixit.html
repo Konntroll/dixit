@@ -3,11 +3,12 @@
    <head>
       <title>Dixit</title>
       <style type="text/css">
-        #welcome {
+        #welcome, #newGame, #games {
           display: block;
         }
         #alreadyPlayed, #alreadyVoted, #autoVote,
-        #noVote, #nextRound, #scores, #wait, #hold {
+        #noVote, #nextRound, #scores, #wait, #hold,
+        #controls, #notifications {
           display: none;
         }
       </style>
@@ -15,31 +16,58 @@
    <script src = "/socket.io/socket.io.js"></script>
    <script>
      var socket = io();
+     let player = '';
      socket.on('playersOnline', function(data) {
        let target = document.getElementById('players');
-       let all = data.names.join(', ');
-       target.innerHTML = "Players: " + all;
+       let total = data.names.length;
+       let online = [];
+       let entry = ''
+       while (online.length != total) {
+         if (data.names[0] == player) {
+           entry += 'you';
+           data.names.shift()
+         } else {
+           entry += data.names.shift();
+         }
+         entry += ' (' + data.scores.shift() + ')'
+         online.push(entry);
+         entry = '';
+       }
+       online = online.join(', ');
+       target.innerHTML = "Players: " + online + '.';
+     });
+     socket.on('removeFromPlay', function(data) {
+       if (document.getElementById(data) != null) {
+         document.getElementById(data).remove();
+       }
+     });
+     socket.on('voteReleased', function() {
+       let target = document.getElementById('notifications');
+       let message = document.createTextNode('A player whose card you voted for
+                                             has left the game. You can vote for
+                                             another card.');
+       target.appendChild(message);
+       flashMessage('notifications');
      });
      socket.on('scoreUpdate', function(data) {
        let target = document.getElementById('scores');
-       let all = data.scores.join(', ');
-       target.innerHTML = all + '.';
+       let output = data.scores.join(', ');
+       target.innerHTML = output + '.';
        socket.emit('readyForNextRound');
        flashMessage('scores', 5000);
      });
      socket.on('storyteller', function(data) {
-       let target = document.getElementById('storyteller');
-       target.innerHTML = data.storyteller + " is the storyteller this round.";
+       let storyteller = document.getElementById('storyteller');
+       if (data == player) {
+         storyteller.innerHTML = "You are the storyteller this round.";
+       } else {
+         storyteller.innerHTML = data + " is the storyteller this round.";
+       }
      });
-     socket.on('image', function(data){
+     socket.on('cardsPlayed', function(data){
        let play = document.getElementById('play');
        for (let card of data) {
          showImage(card, play);
-       }
-     });
-     socket.on('newclientconnect', function(data) {
-       for (let card of data) {
-        showImage(card);
        }
      });
      socket.on('nextRound', function(data) {
@@ -73,6 +101,54 @@
      socket.on('noVote', function() {
        flashMessage("noVote")
      });
+     socket.on('leftTheGame', function(data) {
+       let target = document.getElementById('scores');
+       target.innerHTML = data + " left the game.";
+       flashMessage("notifications");
+       console.log(data + " left the game.");
+     });
+     socket.on('newPlayer', function(data) {
+       for (let card of data) {
+        showImage(card);
+       }
+       let ctrl = document.getElementById('controls');
+       let btntxt = document.createTextNode('Leave');
+       let leave = document.createElement("button");
+       leave.type = "button";
+       leave.id = "leave";
+       leave.onclick = function() {
+         socket.emit('leaveGame');
+         document.getElementById('newGame').style.display = "block";
+         document.getElementById('games').style.display = "block";
+         document.getElementById('controls').style.display = "none";
+         document.getElementById('players').innerHTML = "";
+         document.getElementById('storyteller').innerHTML = "";
+         document.getElementById('hand').innerHTML = "";
+         document.getElementById('leave').remove();
+       }
+       leave.appendChild(btntxt);
+       ctrl.appendChild(leave);
+       document.getElementById('controls').style.display = "block";
+     });
+     socket.on('gamesAvailable', function(games) {
+       for (let game of games) {
+         let entry = document.createElement("div");
+         let title = document.createTextNode(game);
+         let btntxt = document.createTextNode('Join');
+         let join = document.createElement("button");
+         join.type = "button";
+         join.onclick = function() {
+           socket.emit('joinGame', game);
+           document.getElementById('newGame').style.display = "none";
+           document.getElementById('games').style.display = "none";
+         }
+         join.appendChild(btntxt);
+         entry.appendChild(title);
+         entry.appendChild(join);
+         document.getElementById('games').appendChild(entry);
+       }
+     });
+
      function flashMessage(elem, duration = 3000) {
        document.getElementById(elem).style.display = "block";
        setTimeout(function(){
@@ -98,8 +174,14 @@
        target.appendChild(image);
      }
      function assignName() {
-       socket.emit('assignName', document.getElementById('name').value);
+       player = document.getElementById('name').value;
+       socket.emit('assignName', player);
        document.getElementById('welcome').style.display = "none";
+     }
+     function newGame() {
+       document.getElementById('newGame').style.display = "none";
+       document.getElementById('games').style.display = "none";
+       socket.emit('startGame', document.getElementById('startGame').value);
      }
    </script>
    <body>
@@ -108,11 +190,21 @@
        <input id = "name" type = "text" placeholder = "Don't be shy!">
        <button type = "button" onclick = "assignName()">Go!</button>
      </div>
+     <div id="newGame">
+       Start a game. Choose a name:
+       <input id = "startGame" type = "text" placeholder = "Don't be shy!">
+       <button type = "button" onclick = "newGame()">Go!</button>
+     </div>
+     <div id="games">
+
+     </div>
      <div id="game">
        <div id="info">
+         <p id="controls"></p>
          <p id="players"></p>
          <p id="storyteller"></p>
          <p id="scores"></p>
+         <p id="notifications"></p>
          <p id="wait"><b>NOTE:</b> Wait for the storyteller to play their card.</p>
          <p id="hold"><b>NOTE:</b> Wait for the round to finish.</p>
          <p id="alreadyPlayed"><b>NOTE:</b> You already played a card this round.</p>
