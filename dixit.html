@@ -3,13 +3,16 @@
    <head>
       <title>Dixit</title>
       <style type="text/css">
-        #welcome, #newGame, #games {
+        #welcome, #newGame, #games, #chat {
           display: block;
         }
         #alreadyPlayed, #alreadyVoted, #autoVote,
         #noVote, #nextRound, #scores, #wait, #hold,
         #controls, #notifications {
           display: none;
+        }
+        #write {
+          width: 400px;
         }
       </style>
    </head>
@@ -130,6 +133,7 @@
      });
      socket.on('gamesAvailable', function(games) {
        for (let game of games) {
+         if (document.getElementById(game)) continue;
          let entry = document.createElement("div");
          entry.id = game;
          let title = document.createTextNode(game);
@@ -176,49 +180,46 @@
        target.appendChild(image);
      }
      function assignName() {
-       player = document.getElementById('name').value;
-       socket.emit('assignName', player);
-       document.getElementById('welcome').style.display = "none";
-     }
-     function newGame() {
-       document.getElementById('newGame').style.display = "none";
-       document.getElementById('games').style.display = "none";
-       socket.emit('startGame', document.getElementById('startGame').value);
-     }
-     function assign(id) {
-       if (event.keyCode === 13) {
-           document.getElementById(id).click();
+       if (event.keyCode === 13 || event.button === 0) {
+         player = document.getElementById('name').value;
+         socket.emit('assignName', player);
+         document.getElementById('welcome').style.display = "none";
+         document.getElementById('name').value = '';
        }
      }
-     /*
-     document.getElementById('name').addEventListener("keyup", function(event) {
-        event.preventDefault();
-        if (event.keyCode === 13) {
-            document.getElementById('namebtn').click();
-        }
-     });
-     document.getElementById("startGame").addEventListener("keyup", function(event) {
-        event.preventDefault();
-        if (event.keyCode === 13) {
-            document.getElementById("gamebtn").click();
-        }
-     });
-     */
+     function newGame() {
+       if (event.keyCode === 13 || event.button === 0) {
+         document.getElementById('newGame').style.display = "none";
+         document.getElementById('games').style.display = "none";
+         socket.emit('startGame', document.getElementById('startGame').value);
+         document.getElementById('startGame').value = '';
+       }
+     }
+     function send() {
+       if (event.keyCode === 13 || event.button === 0) {
+         socket.emit('newMessage', document.getElementById('write').value);
+         document.getElementById('write').value = '';
+         document.getElementById('write').placeholder = 'Go on!';
+       }
+     }
+     socket.on('transmit', function(message) {
+       let speak = document.createTextNode(message);
+       console.log(speak);
+       document.getElementById('chat').appendChild(speak);
+     })
    </script>
    <body>
      <div id="welcome">
        What's your name?
-       <input id="name" type="text" placeholder="Don't be shy!" onkeyup="assign('namebtn')">
-       <button id="namebtn" type="button" onclick="assignName()">Go!</button>
+       <input id="name" type="text" placeholder="Don't be shy!" onkeyup="assignName()">
+       <button id="namebtn" type="button" onclick="assignName()">That's me!</button>
      </div>
      <div id="newGame">
        Start a game. Choose a name:
-       <input id="startGame" type="text" placeholder="Be creative!" onkeyup="assign('gamebtn')">
-       <button id="gamebtn" type="button" onclick="newGame()">Go!</button>
+       <input id="startGame" type="text" placeholder="Be creative!" onkeyup="newGame()">
+       <button id="gamebtn" type="button" onclick="newGame()">Create!</button>
      </div>
-     <div id="games">
-
-     </div>
+     <div id="games"></div>
      <div id="game">
        <div id="info">
          <p id="controls"></p>
@@ -236,6 +237,10 @@
        </div>
        <div id='play'></div>
        <div id='hand'></div>
+       <div id="chat">
+         <input id="write" type="text" placeholder="Talk to others in this game..." onkeyup="send()">
+         <button id="sendbtn" type="button" onclick="send()">Send!</button>
+       </div>
      </div>
    </body>
 </html>
