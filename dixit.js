@@ -112,6 +112,7 @@ io.on('connection', function(socket) {
     socket.scoreThisRound = 0;
     socket.broadcast.to(socket.game.name).emit('updatePlayers', names(socket.game.players));
     if (socket.game.players.length <= 0) {
+      io.emit('closeGame', socket.game.name);
       games.delete(socket.game.name);
       updateGames();
     }

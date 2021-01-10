@@ -131,6 +131,7 @@
      socket.on('gamesAvailable', function(games) {
        for (let game of games) {
          let entry = document.createElement("div");
+         entry.id = game;
          let title = document.createTextNode(game);
          let btntxt = document.createTextNode('Join');
          let join = document.createElement("button");
@@ -145,6 +146,9 @@
          entry.appendChild(join);
          document.getElementById('games').appendChild(entry);
        }
+     });
+     socket.on('closeGame', function(game) {
+       document.getElementById(game).remove();
      });
 
      function flashMessage(elem, duration = 3000) {
@@ -181,17 +185,36 @@
        document.getElementById('games').style.display = "none";
        socket.emit('startGame', document.getElementById('startGame').value);
      }
+     function assign(id) {
+       if (event.keyCode === 13) {
+           document.getElementById(id).click();
+       }
+     }
+     /*
+     document.getElementById('name').addEventListener("keyup", function(event) {
+        event.preventDefault();
+        if (event.keyCode === 13) {
+            document.getElementById('namebtn').click();
+        }
+     });
+     document.getElementById("startGame").addEventListener("keyup", function(event) {
+        event.preventDefault();
+        if (event.keyCode === 13) {
+            document.getElementById("gamebtn").click();
+        }
+     });
+     */
    </script>
    <body>
      <div id="welcome">
        What's your name?
-       <input id = "name" type = "text" placeholder = "Don't be shy!">
-       <button type = "button" onclick = "assignName()">Go!</button>
+       <input id="name" type="text" placeholder="Don't be shy!" onkeyup="assign('namebtn')">
+       <button id="namebtn" type="button" onclick="assignName()">Go!</button>
      </div>
      <div id="newGame">
        Start a game. Choose a name:
-       <input id = "startGame" type = "text" placeholder = "Don't be shy!">
-       <button type = "button" onclick = "newGame()">Go!</button>
+       <input id="startGame" type="text" placeholder="Be creative!" onkeyup="assign('gamebtn')">
+       <button id="gamebtn" type="button" onclick="newGame()">Go!</button>
      </div>
      <div id="games">
 
