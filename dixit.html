@@ -43,9 +43,7 @@
      });
      socket.on('voteReleased', function() {
        let target = document.getElementById('notifications');
-       let message = document.createTextNode('A player whose card you voted for
-                                             has left the game. You can vote for
-                                             another card.');
+       let message = document.createTextNode('A player whose card you voted for has left the game. You can vote for another card.');
        target.appendChild(message);
        flashMessage('notifications');
      });
