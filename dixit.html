@@ -3,12 +3,20 @@
    <head>
       <title>Dixit</title>
       <style type="text/css">
-        #welcome, #newGame, #games, #chat {
+        body {
+          background-color: grey;
+        }
+        img {
+          border: 7px solid white;
+          border-radius: 1em;
+          margin: 5px;
+        }
+        #welcome, #newGame, #games {
           display: block;
         }
         #alreadyPlayed, #alreadyVoted, #autoVote,
         #noVote, #nextRound, #scores, #wait, #hold,
-        #controls, #notifications {
+        #controls, #notifications, #chat {
           display: none;
         }
         #write {
@@ -144,6 +152,7 @@
            socket.emit('joinGame', game);
            document.getElementById('newGame').style.display = "none";
            document.getElementById('games').style.display = "none";
+           document.getElementById('chat').style.display = "block";
          }
          join.appendChild(btntxt);
          entry.appendChild(title);
@@ -191,6 +200,7 @@
        if (event.keyCode === 13 || event.button === 0) {
          document.getElementById('newGame').style.display = "none";
          document.getElementById('games').style.display = "none";
+         document.getElementById('chat').style.display = "block";
          socket.emit('startGame', document.getElementById('startGame').value);
          document.getElementById('startGame').value = '';
        }
@@ -203,10 +213,24 @@
        }
      }
      socket.on('transmit', function(message) {
-       let speak = document.createTextNode(message);
-       console.log(speak);
-       document.getElementById('chat').appendChild(speak);
+       let msg = '<b>' + message[0] + ':</b> ' + message[1];
+       let line = document.createElement("p");
+       line.innerHTML = msg;
+       document.getElementById('messages').appendChild(line);
      })
+     socket.on('shareChat', function(chat) {
+       //the chat is an array of 2-element sub-arrays each
+       //consisting of a name (index 0) and a message (index 1)
+       for (let message of chat) {
+         let msg = '<b>' + message[0] + '</b> says: ' + message[1];
+         let line = document.createElement("p");
+         line.innerHTML = msg;
+         document.getElementById('messages').appendChild(line);
+       }
+     });
+     socket.on('wipe', function() {
+       document.getElementById('messages').innerHTML = '';
+     });
    </script>
    <body>
      <div id="welcome">
@@ -240,6 +264,8 @@
        <div id="chat">
          <input id="write" type="text" placeholder="Talk to others in this game..." onkeyup="send()">
          <button id="sendbtn" type="button" onclick="send()">Send!</button>
+         <br>
+         <div id='messages'></div>
        </div>
      </div>
    </body>

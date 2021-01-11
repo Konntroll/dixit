@@ -80,6 +80,11 @@ io.on('connection', function(socket) {
     updateGames();
   });
 
+  socket.on('newMessage', function(inbound) {
+    io.in(socket.game.name).emit('transmit', [socket.player, inbound]);
+    socket.game.chat.push([socket.player, inbound]);
+  });
+
   socket.on('joinGame', function(game) {
     socket.game = games.get(game);
     socket.game.players.push(socket);
@@ -93,6 +98,7 @@ io.on('connection', function(socket) {
     }
     socket.emit('newPlayer', socket.hand);
     names(socket.game.players);
+    socket.emit('shareChat', socket.game.chat)
   });
 
   socket.on('leaveGame', function() {
@@ -112,6 +118,7 @@ io.on('connection', function(socket) {
     socket.score = 0;
     socket.scoreThisRound = 0;
     socket.broadcast.to(socket.game.name).emit('updatePlayers', names(socket.game.players));
+    socket.emit('wipe');
     if (socket.game.players.length <= 0) {
       io.emit('closeGame', socket.game.name);
       games.delete(socket.game.name);
@@ -120,10 +127,6 @@ io.on('connection', function(socket) {
   });
 
   console.log('User ' + socket.id + ' is online.');
-
-  socket.on('newMessage', function(inbound) {
-    io.in(socket.game.name).emit('transmit', inbound);
-  });
 
   function midRoundDrop(id) {
     if (id == socket.game.players[0].id) {
