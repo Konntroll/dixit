@@ -11,12 +11,12 @@
           border-radius: 1em;
           margin: 5px;
         }
-        #welcome, #newGame, #games {
+        #welcome {
           display: block;
         }
         #alreadyPlayed, #alreadyVoted, #autoVote,
         #noVote, #nextRound, #scores, #wait, #hold,
-        #controls, #notifications, #chat {
+        #controls, #chat, #newGame, #games {
           display: none;
         }
         #write {
@@ -53,17 +53,13 @@
        }
      });
      socket.on('voteReleased', function() {
-       let target = document.getElementById('notifications');
-       let message = document.createTextNode('A player whose card you voted for has left the game. You can vote for another card.');
-       target.appendChild(message);
-       flashMessage('notifications');
+       gameMessage('A player whose card you voted for has left the game.\
+                    You can vote for another card.');
      });
      socket.on('scoreUpdate', function(data) {
-       let target = document.getElementById('scores');
        let output = data.scores.join(', ');
-       target.innerHTML = output + '.';
+       gameMessage(output + '.');
        socket.emit('readyForNextRound');
-       flashMessage('scores', 5000);
      });
      socket.on('storyteller', function(data) {
        let storyteller = document.getElementById('storyteller');
@@ -84,37 +80,41 @@
        if (data >= 0) {
          showImage(data);
        }
-       flashMessage("nextRound");
+       gameMessage('Next round is starting!');
      });
      socket.on('holdPlay', function(data) {
        showImage(data);
-       flashMessage('hold');
+       gameMessage('Wait for the round to finish.');
      });
      socket.on('holdVote', function() {
-       flashMessage('hold');
+       gameMessage('Wait for the round to finish.');
      });
      socket.on('wait', function(data) {
        showImage(data);
-       flashMessage('wait');
+       gameMessage('Wait for the storyteller to play their card.');
      });
      socket.on('alreadyPlayed', function(data) {
        showImage(data);
-       flashMessage("alreadyPlayed");
+       gameMessage('You already played a card this round.');
      });
      socket.on('alreadyVoted', function() {
-       flashMessage("alreadyVoted");
+       gameMessage('You already voted for a card this round.');
      });
      socket.on('autoVote', function() {
-       flashMessage("autoVote");
+       gameMessage('You can\'t vote for your own card.');
      });
      socket.on('noVote', function() {
-       flashMessage("noVote")
+       gameMessage('You can\'t vote this round because you are the storyteller.');
      });
      socket.on('leftTheGame', function(data) {
-       let target = document.getElementById('scores');
-       target.innerHTML = data + " left the game.";
-       flashMessage("notifications");
-       console.log(data + " left the game.");
+       gameMessage(data + ' left the game.');
+     });
+     socket.on('leftTheBuilding', function() {
+       gameMessage('Storyteller left the game. Starting a new round');
+     });
+     socket.on('needMorePlayers', function(data) {
+       showImage(data);
+       gameMessage('You need at least three players to play.');
      });
      socket.on('newPlayer', function(data) {
        for (let card of data) {
@@ -163,12 +163,11 @@
      socket.on('closeGame', function(game) {
        document.getElementById(game).remove();
      });
-
-     function flashMessage(elem, duration = 3000) {
-       document.getElementById(elem).style.display = "block";
-       setTimeout(function(){
-         document.getElementById(elem).style.display = "none";
-       }, duration);
+     function gameMessage(message) {
+       let msg = '<b>DIXIT:</b> ' + message;
+       let line = document.createElement("p");
+       line.innerHTML = msg;
+       document.getElementById('messages').appendChild(line);
      }
      function showImage(src, target = document.getElementById("hand")) {
        let image = document.createElement("img");
@@ -194,6 +193,8 @@
          socket.emit('assignName', player);
          document.getElementById('welcome').style.display = "none";
          document.getElementById('name').value = '';
+         document.getElementById('newGame').style.display = "block";
+         document.getElementById('games').style.display = "block";
        }
      }
      function newGame() {
@@ -212,17 +213,32 @@
          document.getElementById('write').placeholder = 'Go on!';
        }
      }
+     function gameMessage(message) {
+       let msg = '<b>DIXIT:</b> ' + message;
+       let line = document.createElement("p");
+       line.innerHTML = msg;
+       document.getElementById('messages').appendChild(line);
+       trimChatHistory()
+     }
+     function trimChatHistory() {
+       //restricts chat history to 50 total messages
+       let chat = document.getElementById("messages").childNodes;
+       if (chat.length > 50) {
+         chat[0].remove();
+       }
+     }
      socket.on('transmit', function(message) {
        let msg = '<b>' + message[0] + ':</b> ' + message[1];
        let line = document.createElement("p");
        line.innerHTML = msg;
        document.getElementById('messages').appendChild(line);
+       trimChatHistory();
      })
      socket.on('shareChat', function(chat) {
        //the chat is an array of 2-element sub-arrays each
        //consisting of a name (index 0) and a message (index 1)
        for (let message of chat) {
-         let msg = '<b>' + message[0] + '</b> says: ' + message[1];
+         let msg = '<b>' + message[0] + ':</b> ' + message[1];
          let line = document.createElement("p");
          line.innerHTML = msg;
          document.getElementById('messages').appendChild(line);
@@ -239,8 +255,8 @@
        <button id="namebtn" type="button" onclick="assignName()">That's me!</button>
      </div>
      <div id="newGame">
-       Start a game. Choose a name:
-       <input id="startGame" type="text" placeholder="Be creative!" onkeyup="newGame()">
+       Start a game.
+       <input id="startGame" type="text" placeholder="Choose a name." onkeyup="newGame()">
        <button id="gamebtn" type="button" onclick="newGame()">Create!</button>
      </div>
      <div id="games"></div>
@@ -250,14 +266,6 @@
          <p id="players"></p>
          <p id="storyteller"></p>
          <p id="scores"></p>
-         <p id="notifications"></p>
-         <p id="wait"><b>NOTE:</b> Wait for the storyteller to play their card.</p>
-         <p id="hold"><b>NOTE:</b> Wait for the round to finish.</p>
-         <p id="alreadyPlayed"><b>NOTE:</b> You already played a card this round.</p>
-         <p id="alreadyVoted"><b>NOTE:</b> You already voted for a card this round.</p>
-         <p id="autoVote"><b>NOTE:</b> You can't vote for your own card.</p>
-         <p id="noVote"><b>NOTE:</b> You can't vote this round because you are the storyteller.</p>
-         <p id="nextRound"><b>NOTE:</b> Next round is starting!</p>
        </div>
        <div id='play'></div>
        <div id='hand'></div>

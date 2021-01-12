@@ -23,16 +23,6 @@ function shuffle(array) {
     return array;
 }
 
-/*
-function playersOnline(playersInGame) {
-  let playerNames = [];
-  for (let player of playersInGame) {
-    playerNames.push(player.player  + ' (' + player.score + ')');
-  }
-  return playerNames;
-}
-*/
-
 function scoreForTheRound(players) {
   let playerScores = [];
   for (let player of players) {
@@ -83,6 +73,10 @@ io.on('connection', function(socket) {
   socket.on('newMessage', function(inbound) {
     io.in(socket.game.name).emit('transmit', [socket.player, inbound]);
     socket.game.chat.push([socket.player, inbound]);
+    //restricts chat history to 30 player messages
+    if (socket.game.chat.length >= 30) {
+      socket.game.chat.shift()
+    }
   });
 
   socket.on('joinGame', function(game) {
@@ -138,15 +132,20 @@ io.on('connection', function(socket) {
         if (player.hand.length < 5) {
           player.hand.push(dealCard(socket.game.deck));
         }  else {
-          //placeholder solution to a situation where the storyteller
-          //leaves mid-play; this is needed for players who haven't
-          //played a card to stop the client side from displaying
-          //duplicates via the same mechanism as for players on hold
-          player.onHold = true;
-          socket.game.waiting++;
+          //this is to check if only one player remains and skips
+          //putting the only remaining player on hold as this
+          //locks the game up even if new players join
+          if (socket.game.players.length != 1) {
+            //placeholder solution to a situation where the storyteller
+            //leaves mid-play; this is needed for players who haven't
+            //played a card to stop the client side from displaying
+            //duplicates via the same mechanism as for players on hold
+            player.onHold = true;
+            socket.game.waiting++;
+          }
         }
       }
-      socket.broadcast.to(socket.game.name).emit('scoreUpdate', {scores: ['Storyteller left the game. Starting a new round']});
+      socket.broadcast.to(socket.game.name).emit('leftTheBuilding');
     } else {
       for (let card of socket.game.play.keys()) {
         //find the card played by the departing player
@@ -172,6 +171,11 @@ io.on('connection', function(socket) {
   }
 
   socket.on('playCard', function(data) {
+    //  - socket.game.waiting !
+    if (socket.game.players.length < 3) {
+      socket.emit('needMorePlayers', data);
+      return;
+    }
     if (socket.onHold == true) {
       socket.emit('holdPlay', data);
       return;
