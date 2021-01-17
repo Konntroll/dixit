@@ -1,15 +1,18 @@
-var dixit = require('express')();
+var express = require('express');
+var dixit = express();
 var http = require('http').Server(dixit);
 var io = require('socket.io')(http);
+var path = require('path');
 var port = process.env.PORT || 80;
+
 
 dixit.get('/', function(req, res) {
    res.sendFile('dixit.html', {root: __dirname});
-});
+}).use(express.static(path.join(__dirname, '/public')));
 
 function populate() {
   let newDeck = [];
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
     newDeck.push(i);
   }
   return newDeck;
@@ -67,6 +70,7 @@ io.on('connection', function(socket) {
     socket.onHold = false;
     socket.emit('newPlayer', socket.hand);
     names(socket.game.players);
+    storyteller(socket.game.players[0].player, true);
     updateGames();
   });
 
@@ -80,6 +84,7 @@ io.on('connection', function(socket) {
   });
 
   socket.on('joinGame', function(game) {
+    socket.broadcast.to(game).emit('joinedTheGame', socket.player);
     socket.game = games.get(game);
     socket.game.players.push(socket);
     socket.join(game);
@@ -92,16 +97,25 @@ io.on('connection', function(socket) {
     }
     socket.emit('newPlayer', socket.hand);
     names(socket.game.players);
+    storyteller(socket.game.players[0].player, true);
     socket.emit('shareChat', socket.game.chat)
   });
 
   socket.on('leaveGame', function() {
     socket.broadcast.to(socket.game.name).emit('leftTheGame', socket.player);
+    console.log('Players still in game: ' + socket.game.players.length)
     if (socket.game.play.size > 0) {
       midRoundDrop(socket.id);
     }
-    let playerIndex = socket.game.players.indexOf(socket);
-    socket.game.players.splice(playerIndex, 1);
+    if (socket.id == socket.game.players[0].id) {
+      socket.game.players.shift();
+      if (socket.game.players.length > 0) {
+        storyteller(socket.game.players[0].player);
+      }
+    } else {
+      let departed = socket.game.players.indexOf(socket);
+      socket.game.players.splice(departed, 1);
+    }
     while (socket.hand != 0) {
       socket.game.discard.push(socket.hand.shift());
     }
@@ -129,7 +143,7 @@ io.on('connection', function(socket) {
       }
       socket.game.play.clear();
       for (let player of socket.game.players) {
-        if (player.hand.length < 5) {
+        if (player.hand.length < 6) {
           player.hand.push(dealCard(socket.game.deck));
         }  else {
           //this is to check if only one player remains and skips
@@ -240,8 +254,8 @@ io.on('connection', function(socket) {
     socket.game.votes++;
     if (socket.game.votes >= socket.game.play.size - 1) {
       tallyVotes();
-      prepForNextRound();
       io.to(socket.game.name).emit('scoreUpdate', {scores: scoreForTheRound(socket.game.players)});
+      prepForNextRound();
       for (let player of socket.game.players) {
         player.scoreThisRound = 0;
       }
@@ -296,73 +310,96 @@ io.on('connection', function(socket) {
   function prepForNextRound() {
     socket.game.players.push(socket.game.players.shift());
     names(socket.game.players);
+    storyteller(socket.game.players[0].player);
     socket.game.play.clear();
     for (let player of socket.game.players) {
-      if (player.hand.length < 5) {
+      if (player.hand.length < 6) {
         player.hand.push(dealCard(socket.game.deck));
       }
     }
   }
 
   socket.on('assignName', function(data) {
-    socket.player = data;
-    if (socket.game) {
-      names(socket.game.players);
+    if (data.match(/dixit/i)) {
+      socket.emit('nameTaken');
+      return;
     }
+    for (let player of io.sockets.sockets.values()) {
+      let re = new RegExp(player.player, 'i');
+      if (data.match(re)) {
+        socket.emit('nameTaken');
+        return;
+      }
+    }
+    socket.player = data;
+    socket.emit('welcome');
+    /*if (socket.game) {
+      names(socket.game.players);
+    }*/
   });
 
   socket.on('disconnect', function() {
     console.log('User ' + socket.id + ' is offline.');
-    if (socket.game) {
-      socket.broadcast.to(socket.game.name).emit('leftTheGame', socket.player);
-      console.log('Play size at the time of disconnect:');
-      console.log(socket.game.play.size);
-      if (socket.game.play.size > 0) {
-        midRoundDrop(socket.id);
+    /*socket.broadcast.to(socket.game.name).emit('leftTheGame', socket.player);
+    if (socket.game.play.size > 0) {
+      midRoundDrop(socket.id);
+    }
+    if (socket.id == socket.game.players[0].id) {
+      socket.game.players.shift();
+      if (socket.game.players.length > 0) {
+        storyteller(socket.game.players[0].player);
       }
-      if (socket.game.players.length <= 0) {
-        games.delete(socket.game.name);
-      }
+    } else {
       let departed = socket.game.players.indexOf(socket);
       socket.game.players.splice(departed, 1);
-      while (socket.hand.length != 0) {
-        socket.game.discard.push(socket.hand.shift())
-      }
-      if (socket.onHold == true) {
-        socket.game.waiting--;
-      }
-      if (socket.game.players.length <= 0) {
-        io.emit('closeGame', socket.game.name);
-        games.delete(socket.game.name);
-      }
-      names(socket.game.players);
     }
+    while (socket.hand.length != 0) {
+      socket.game.discard.push(socket.hand.shift())
+    }
+    if (socket.onHold == true) {
+      socket.game.waiting--;
+    }
+    if (socket.game.players.length <= 0) {
+      io.emit('closeGame', socket.game.name);
+      games.delete(socket.game.name);
+    }
+    names(socket.game.players);
+    if (socket.game.players.length <= 0) {
+      io.emit('closeGame', socket.game.name);
+      games.delete(socket.game.name);
+      updateGames();
+    }*/
   });
 
   function names(players) {
     if (players.length <= 0) {
       return console.log('Nobody there anymore!');
     }
-    let names = [];
-    let scores = [];
-    for (let player of players) {
-      names.push(player.player);
-      scores.push(player.score);
-    }
     let data = {
-      names: names,
-      scores: scores
+      names: [],
+      scores: []
+    }
+    for (let player of players) {
+      data.names.push(player.player);
+      data.scores.push(player.score);
     }
     io.to(socket.game.name).emit('playersOnline', data);
-    io.to(socket.game.name).emit('storyteller', players[0].player);
+  }
+
+  function storyteller(player, newJoin = false) {
+    if (newJoin) {
+      socket.emit('storyteller', player);
+    } else {
+      io.to(socket.game.name).emit('storyteller', player);
+    }
   }
 
   function dealHand(array) {
-    if (array.length < 5) {
+    if (array.length < 6) {
       array = array.concat(shuffle(socket.game.discard));
       socket.game.discard = [];
     }
-    return array.splice(0, 5);
+    return array.splice(0, 6);
   }
 
   function dealCard(array) {

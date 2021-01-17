@@ -2,27 +2,7 @@
 <html>
    <head>
       <title>Dixit</title>
-      <style type="text/css">
-        body {
-          background-color: grey;
-        }
-        img {
-          border: 7px solid white;
-          border-radius: 1em;
-          margin: 5px;
-        }
-        #welcome {
-          display: block;
-        }
-        #alreadyPlayed, #alreadyVoted, #autoVote,
-        #noVote, #nextRound, #scores, #wait, #hold,
-        #controls, #chat, #newGame, #games {
-          display: none;
-        }
-        #write {
-          width: 400px;
-        }
-      </style>
+      <link rel="stylesheet" href="/dixit.css">
    </head>
    <script src = "/socket.io/socket.io.js"></script>
    <script>
@@ -30,22 +10,17 @@
      let player = '';
      socket.on('playersOnline', function(data) {
        let target = document.getElementById('players');
-       let total = data.names.length;
-       let online = [];
-       let entry = ''
-       while (online.length != total) {
-         if (data.names[0] == player) {
-           entry += 'you';
-           data.names.shift()
-         } else {
-           entry += data.names.shift();
-         }
-         entry += ' (' + data.scores.shift() + ')'
-         online.push(entry);
-         entry = '';
+       target.innerHTML = '';
+       while (data.names.length != 0) {
+         let box = document.createElement("div");
+         box.id = data.names[0];
+         box.className = 'player';
+         let name = data.names.shift() + ' (' + data.scores.shift() + ')';
+         let player = document.createTextNode(name);
+         box.appendChild(player);
+         target.appendChild(box);
        }
-       online = online.join(', ');
-       target.innerHTML = "Players: " + online + '.';
+       target.firstChild.style.backgroundColor = "teal";
      });
      socket.on('removeFromPlay', function(data) {
        if (document.getElementById(data) != null) {
@@ -62,20 +37,23 @@
        socket.emit('readyForNextRound');
      });
      socket.on('storyteller', function(data) {
-       let storyteller = document.getElementById('storyteller');
        if (data == player) {
-         storyteller.innerHTML = "You are the storyteller this round.";
+         gameMessage('You are the storyteller this round.');
        } else {
-         storyteller.innerHTML = data + " is the storyteller this round.";
+         gameMessage(data + ' is the storyteller this round.');
        }
      });
      socket.on('cardsPlayed', function(data){
+       document.getElementById('hand').style.display = "none";
        let play = document.getElementById('play');
+       play.style.display = "grid";
        for (let card of data) {
          showImage(card, play);
        }
      });
      socket.on('nextRound', function(data) {
+       document.getElementById('play').style.display = "none";
+       document.getElementById('hand').style.display = "grid";
        document.getElementById('play').innerHTML = '';
        if (data >= 0) {
          showImage(data);
@@ -109,6 +87,9 @@
      socket.on('leftTheGame', function(data) {
        gameMessage(data + ' left the game.');
      });
+     socket.on('joinedTheGame', function(data) {
+       gameMessage(data + ' joined the game.');
+     });
      socket.on('leftTheBuilding', function() {
        gameMessage('Storyteller left the game. Starting a new round');
      });
@@ -120,9 +101,10 @@
        for (let card of data) {
         showImage(card);
        }
+       document.getElementById('hand').style.display = "grid";
        let ctrl = document.getElementById('controls');
-       let btntxt = document.createTextNode('Leave');
-       let leave = document.createElement("button");
+       let txt = document.createTextNode('Leave');
+       let leave = document.createElement("div");
        leave.type = "button";
        leave.id = "leave";
        leave.onclick = function() {
@@ -132,31 +114,35 @@
          document.getElementById('controls').style.display = "none";
          document.getElementById('players').innerHTML = "";
          document.getElementById('storyteller').innerHTML = "";
+         document.getElementById('hand').style.display = "none";
          document.getElementById('hand').innerHTML = "";
+         document.getElementById('chat').style.display = "none";
          document.getElementById('leave').remove();
        }
-       leave.appendChild(btntxt);
+       leave.appendChild(txt);
        ctrl.appendChild(leave);
-       document.getElementById('controls').style.display = "block";
+       document.getElementById('controls').style.display = "flex";
      });
      socket.on('gamesAvailable', function(games) {
+       if (games.length > 0) {
+         document.getElementById('games').style.display = "block";
+       } else {
+         document.getElementById('games').style.display = "none";
+         return;
+       }
        for (let game of games) {
          if (document.getElementById(game)) continue;
          let entry = document.createElement("div");
          entry.id = game;
+         entry.className = 'gamesAvailable';
          let title = document.createTextNode(game);
-         let btntxt = document.createTextNode('Join');
-         let join = document.createElement("button");
-         join.type = "button";
-         join.onclick = function() {
+         entry.onclick = function() {
            socket.emit('joinGame', game);
            document.getElementById('newGame').style.display = "none";
            document.getElementById('games').style.display = "none";
-           document.getElementById('chat').style.display = "block";
+           document.getElementById('chat').style.display = "flex";
          }
-         join.appendChild(btntxt);
          entry.appendChild(title);
-         entry.appendChild(join);
          document.getElementById('games').appendChild(entry);
        }
      });
@@ -171,7 +157,7 @@
      }
      function showImage(src, target = document.getElementById("hand")) {
        let image = document.createElement("img");
-       image.src = "https://konntroll.github.io/memo/images/" + src + ".jpg";
+       image.src = "images/" + src + ".jpg";
        image.width = 200;
        image.height = 200;
        image.id = src;
@@ -191,17 +177,27 @@
        if (event.keyCode === 13 || event.button === 0) {
          player = document.getElementById('name').value;
          socket.emit('assignName', player);
-         document.getElementById('welcome').style.display = "none";
+         /*document.getElementById('welcome').style.display = "none";
          document.getElementById('name').value = '';
-         document.getElementById('newGame').style.display = "block";
-         document.getElementById('games').style.display = "block";
+         document.getElementById('newGame').style.display = "block";*/
        }
      }
+
+     socket.on('welcome', function() {
+       document.getElementById('welcome').style.display = "none";
+       document.getElementById('name').value = '';
+       document.getElementById('newGame').style.display = "block";
+     });
+
+     socket.on('nameTaken', function() {
+       document.getElementById('nameTaken').style.display = "block";
+     });
+
      function newGame() {
        if (event.keyCode === 13 || event.button === 0) {
          document.getElementById('newGame').style.display = "none";
          document.getElementById('games').style.display = "none";
-         document.getElementById('chat').style.display = "block";
+         document.getElementById('chat').style.display = "flex";
          socket.emit('startGame', document.getElementById('startGame').value);
          document.getElementById('startGame').value = '';
        }
@@ -217,6 +213,7 @@
        let msg = '<b>DIXIT:</b> ' + message;
        let line = document.createElement("p");
        line.innerHTML = msg;
+       line.className = 'message';
        document.getElementById('messages').appendChild(line);
        trimChatHistory()
      }
@@ -231,6 +228,7 @@
        let msg = '<b>' + message[0] + ':</b> ' + message[1];
        let line = document.createElement("p");
        line.innerHTML = msg;
+       line.className = 'message';
        document.getElementById('messages').appendChild(line);
        trimChatHistory();
      })
@@ -241,6 +239,7 @@
          let msg = '<b>' + message[0] + ':</b> ' + message[1];
          let line = document.createElement("p");
          line.innerHTML = msg;
+         line.className = 'message';
          document.getElementById('messages').appendChild(line);
        }
      });
@@ -250,29 +249,35 @@
    </script>
    <body>
      <div id="welcome">
-       What's your name?
+       <h1>What's your name?</h1>
        <input id="name" type="text" placeholder="Don't be shy!" onkeyup="assignName()">
-       <button id="namebtn" type="button" onclick="assignName()">That's me!</button>
+       <button id="namebtn" type="button" onclick="assignName()">Click!</button>
+       <h3 id="nameTaken">This name is already taken. Try another.</h3>
      </div>
      <div id="newGame">
-       Start a game.
+       <h1>Start a game.</h1>
        <input id="startGame" type="text" placeholder="Choose a name." onkeyup="newGame()">
        <button id="gamebtn" type="button" onclick="newGame()">Create!</button>
+       <div id="games">
+         <h1>Or join one of these:</h1>
+       </div>
      </div>
-     <div id="games"></div>
      <div id="game">
+       <div id="players"></div>
+       <div id="controls"></div>
        <div id="info">
-         <p id="controls"></p>
-         <p id="players"></p>
          <p id="storyteller"></p>
          <p id="scores"></p>
        </div>
-       <div id='play'></div>
-       <div id='hand'></div>
+       <div id='play'>
+         <div id="playHeader">VOTE FOR A CARD</div>
+       </div>
+       <div id='hand'>
+         <div id="handHeader">YOUR CARDS</div>
+       </div>
        <div id="chat">
          <input id="write" type="text" placeholder="Talk to others in this game..." onkeyup="send()">
          <button id="sendbtn" type="button" onclick="send()">Send!</button>
-         <br>
          <div id='messages'></div>
        </div>
      </div>
